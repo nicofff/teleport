@@ -3256,3 +3256,13 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 		return trace.Wrap(err)
 	}
 }
+
+func (tc *TeleportClient) GetActiveSessions(ctx context.Context) ([]types.Session, error) {
+	proxy, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer proxy.Close()
+	return proxy.GetActiveSessions(ctx)
+}
