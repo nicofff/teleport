@@ -480,7 +480,9 @@ func TestRequestAuditEvents(t *testing.T) {
 		require.Equal(t, app.Spec.PublicAddr, chunkEvent.AppPublicAddr)
 		require.Equal(t, app.Metadata.Name, chunkEvent.AppName)
 
-		require.Equal(t, 1, int(requestEventsReceived.Load()))
+		require.Eventually(t, func() bool {
+			return requestEventsReceived.Load() == 1
+		}, 500*time.Millisecond, 50*time.Millisecond, "app.request event not generated")
 	})
 }
 
