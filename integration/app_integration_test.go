@@ -34,6 +34,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -1111,6 +1113,31 @@ func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName, name, uri
 	err = json.NewDecoder(resp.Body).Decode(&casResp)
 	require.NoError(t, err)
 
+	p.ensureAuditEvent(t, events.AppSessionStartEvent, func(event apievents.AuditEvent) {
+		expectedEvent := &apievents.AppSessionStart{
+			Metadata: apievents.Metadata{
+				Type: events.AppSessionStartEvent,
+				Code: events.AppSessionStartCode,
+			},
+			AppMetadata: apievents.AppMetadata{
+				AppURI:        uri,
+				AppPublicAddr: publicAddr,
+				AppName:       name,
+			},
+			PublicAddr: publicAddr,
+		}
+		require.Empty(t, cmp.Diff(
+			expectedEvent,
+			event,
+			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
+			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time", "ClusterName"),
+		))
+	})
+
+	return casResp.CookieValue
+}
+
+func (p *pack) ensureAuditEvent(t *testing.T, eventType string, checkEvent func(event apievents.AuditEvent)) {
 	require.Eventually(t, func() bool {
 		events, _, err := p.rootCluster.Process.GetAuthServer().SearchEvents(
 			time.Now().Add(-time.Hour),
@@ -1126,15 +1153,9 @@ func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName, name, uri
 			return false
 		}
 
-		startSessionEvent, ok := events[0].(*apievents.AppSessionStart)
-		require.True(t, ok)
-		require.Equal(t, uri, startSessionEvent.AppURI)
-		require.Equal(t, publicAddr, startSessionEvent.AppPublicAddr)
-		require.Equal(t, name, startSessionEvent.AppName)
-
+		checkEvent(events[0])
 		return true
-	}, 500*time.Millisecond, 50*time.Millisecond)
-	return casResp.CookieValue
+	}, 500*time.Millisecond, 50*time.Millisecond, "failed to fetch audit event")
 }
 
 // initCertPool initializes root cluster CA pool.
