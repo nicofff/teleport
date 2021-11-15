@@ -452,11 +452,28 @@ func TestRequestAuditEvents(t *testing.T) {
 		OnEmitAuditEvent: func(_ context.Context, _ libsession.ID, event apievents.AuditEvent) error {
 			if event.GetType() == events.AppSessionRequestEvent {
 				requestEventsReceived.Inc()
-				requestEvent, ok := event.(*apievents.AppSessionRequest)
-				require.True(t, ok)
-				require.Equal(t, app.Spec.URI, requestEvent.AppURI)
-				require.Equal(t, app.Spec.PublicAddr, requestEvent.AppPublicAddr)
-				require.Equal(t, app.Metadata.Name, requestEvent.AppName)
+
+				expectedEvent := &apievents.AppSessionRequest{
+					Metadata: apievents.Metadata{
+						Type: events.AppSessionRequestEvent,
+						Code: events.AppSessionRequestCode,
+					},
+					AppMetadata: apievents.AppMetadata{
+						AppURI:        app.Spec.URI,
+						AppPublicAddr: app.Spec.PublicAddr,
+						AppName:       app.Metadata.Name,
+					},
+					StatusCode: 200,
+					Method:     "GET",
+					Path:       "/",
+				}
+				require.Empty(t, cmp.Diff(
+					expectedEvent,
+					event,
+					cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
+					cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time"),
+					cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
+				))
 			}
 
 			return nil
@@ -470,15 +487,28 @@ func TestRequestAuditEvents(t *testing.T) {
 	})
 	// make a request to generate events.
 	s.checkHTTPResponse(t, s.clientCertificate, func(_ *http.Response) {
-		events, _, err := s.authServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.AppSessionChunkEvent}, 10, types.EventOrderDescending, "")
+		searchEvents, _, err := s.authServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.AppSessionChunkEvent}, 10, types.EventOrderDescending, "")
 		require.NoError(t, err)
-		require.Len(t, events, 1)
+		require.Len(t, searchEvents, 1)
 
-		chunkEvent, ok := events[0].(*apievents.AppSessionChunk)
-		require.True(t, ok)
-		require.Equal(t, app.Spec.URI, chunkEvent.AppURI)
-		require.Equal(t, app.Spec.PublicAddr, chunkEvent.AppPublicAddr)
-		require.Equal(t, app.Metadata.Name, chunkEvent.AppName)
+		expectedEvent := &apievents.AppSessionChunk{
+			Metadata: apievents.Metadata{
+				Type: events.AppSessionChunkEvent,
+				Code: events.AppSessionChunkCode,
+			},
+			AppMetadata: apievents.AppMetadata{
+				AppURI:        app.Spec.URI,
+				AppPublicAddr: app.Spec.PublicAddr,
+				AppName:       app.Metadata.Name,
+			},
+		}
+		require.Empty(t, cmp.Diff(
+			expectedEvent,
+			searchEvents[0],
+			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
+			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName"),
+			cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
+		))
 
 		require.Eventually(t, func() bool {
 			return requestEventsReceived.Load() == 1
