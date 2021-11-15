@@ -60,11 +60,8 @@ func (c *transportConfig) Check() error {
 	if c.w == nil {
 		return trace.BadParameter("stream writer missing")
 	}
-	if c.app.GetURI() == "" {
-		return trace.BadParameter("uri missing")
-	}
-	if c.app.GetPublicAddr() == "" {
-		return trace.BadParameter("public addr missing")
+	if c.app == nil {
+		return trace.BadParameter("app missing")
 	}
 	if c.publicPort == "" {
 		return trace.BadParameter("public port missing")
