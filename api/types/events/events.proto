@@ -1173,7 +1173,7 @@ message AppSessionStart {
     // PublicAddr is the public address of the application being requested.
     // TODO: this information is also present on the AppMetadata, we can
     // deprecate this field in the future.
-    string PublicAddr = 7 [ (gogoproto.jsontag) = "public_addr" ];
+    string PublicAddr = 7 [ (gogoproto.jsontag) = "public_addr", deprecated = true ];
 
     // App is a common application resource metadata.
     AppMetadata App = 8
