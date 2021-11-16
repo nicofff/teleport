@@ -44,13 +44,13 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	libsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"go.uber.org/atomic"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 func TestMain(m *testing.M) {
@@ -485,35 +485,37 @@ func TestRequestAuditEvents(t *testing.T) {
 		ServerStreamer: serverStreamer,
 		Apps:           types.Apps{app},
 	})
+
 	// make a request to generate events.
 	s.checkHTTPResponse(t, s.clientCertificate, func(_ *http.Response) {
-		searchEvents, _, err := s.authServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.AppSessionChunkEvent}, 10, types.EventOrderDescending, "")
-		require.NoError(t, err)
-		require.Len(t, searchEvents, 1)
-
-		expectedEvent := &apievents.AppSessionChunk{
-			Metadata: apievents.Metadata{
-				Type: events.AppSessionChunkEvent,
-				Code: events.AppSessionChunkCode,
-			},
-			AppMetadata: apievents.AppMetadata{
-				AppURI:        app.Spec.URI,
-				AppPublicAddr: app.Spec.PublicAddr,
-				AppName:       app.Metadata.Name,
-			},
-		}
-		require.Empty(t, cmp.Diff(
-			expectedEvent,
-			searchEvents[0],
-			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
-			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName"),
-			cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
-		))
-
+		// wait until request events are generated before closing the server.
 		require.Eventually(t, func() bool {
 			return requestEventsReceived.Load() == 1
 		}, 500*time.Millisecond, 50*time.Millisecond, "app.request event not generated")
 	})
+
+	searchEvents, _, err := s.authServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.AppSessionChunkEvent}, 10, types.EventOrderDescending, "")
+	require.NoError(t, err)
+	require.Len(t, searchEvents, 1)
+
+	expectedEvent := &apievents.AppSessionChunk{
+		Metadata: apievents.Metadata{
+			Type: events.AppSessionChunkEvent,
+			Code: events.AppSessionChunkCode,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        app.Spec.URI,
+			AppPublicAddr: app.Spec.PublicAddr,
+			AppName:       app.Metadata.Name,
+		},
+	}
+	require.Empty(t, cmp.Diff(
+		expectedEvent,
+		searchEvents[0],
+		cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
+		cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName"),
+		cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
+	))
 }
 
 // checkHTTPResponse checks expected HTTP response.
