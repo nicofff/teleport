@@ -71,16 +71,14 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app t
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(s.closeContext,
 		&transportConfig{
-			w:                  streamWriter,
-			app:                app,
-			publicPort:         s.proxyPort,
-			cipherSuites:       s.c.CipherSuites,
-			insecureSkipVerify: app.GetInsecureSkipVerify(),
-			jwt:                jwt,
-			rewrite:            app.GetRewrite(),
-			traits:             identity.Traits,
-			log:                s.log,
-			user:               identity.Username,
+			w:            streamWriter,
+			app:          app,
+			publicPort:   s.proxyPort,
+			cipherSuites: s.c.CipherSuites,
+			jwt:          jwt,
+			traits:       identity.Traits,
+			log:          s.log,
+			user:         identity.Username,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
